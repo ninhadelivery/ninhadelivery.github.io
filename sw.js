@@ -1,6 +1,6 @@
 // Ninha Delivery: app shell offline + cache das fontes.
 // Ao mudar qualquer arquivo do app, suba a versão para forçar atualização.
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = "runtime";
 const ASSETS = [

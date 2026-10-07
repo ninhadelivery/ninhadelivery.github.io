@@ -107,7 +107,12 @@ input[type=text], input[type=tel], textarea { font: inherit; color: var(--fg); b
 input:focus-visible, textarea:focus-visible { outline: 3px solid var(--azul); outline-offset: 1px; border-color: var(--azul) }
 textarea { resize: vertical; min-height: 60px }
 
-.preview { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: .85rem; white-space: pre-wrap; color: var(--muted); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace }
+#msg { min-height: 150px; font-size: .92rem; line-height: 1.45 }
+.msg-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 6px }
+.link { border: 0; background: none; padding: 0; color: var(--azul); font: 600 .85rem var(--f-body); cursor: pointer; text-decoration: underline }
+.btn-sec { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 18px; background: none; color: var(--fg); font: 600 1rem var(--f-body); cursor: pointer }
+.btn-sec:hover { border-color: var(--warn); color: var(--warn) }
+.btn-sec:focus-visible, .link:focus-visible { outline: 3px solid var(--azul); outline-offset: 2px }
 .btn { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; border: 0; border-radius: 12px; padding: 14px 18px;
   background: var(--manteiga); color: var(--manteiga-fg); font: 700 1rem var(--f-body); cursor: pointer; text-decoration: none }
 .btn:focus-visible { outline: 3px solid var(--azul); outline-offset: 2px }
@@ -175,12 +180,16 @@ textarea { resize: vertical; min-height: 60px }
     <label class="field">Observação <span>opcional — ex.: bem passada, sem manteiga</span><textarea id="obs" maxlength="140"></textarea></label>
 
     <div>
-      <div class="hint" style="margin:0 0 6px">Mensagem que vai pra Ninha</div>
-      <div class="preview" id="preview"></div>
+      <div class="msg-head">
+        <label for="msg" style="font-weight:700">Mensagem pra Ninha <span class="hint" style="font-weight:400">pode editar</span></label>
+        <button class="link" type="button" id="restaurar" hidden>Refazer com o pedido</button>
+      </div>
+      <textarea id="msg" maxlength="1000"></textarea>
     </div>
 
     <a class="btn" id="send" href="#" target="_blank" rel="noopener"><span>Enviar pelo WhatsApp</span><span class="total" id="total"></span></a>
     <p class="hint">Abre o WhatsApp com a mensagem pronta. O pedido só chega à Ninha quando você tocar em enviar lá.</p>
+    <button class="btn-sec" type="button" id="desistir">Desistir do pedido</button>
   </form>
 </div>
 
@@ -227,7 +236,9 @@ $("flavors").innerHTML = SABORES.map(s =>
 const sel = () => [...document.querySelectorAll("input[name=sabor]:checked")].map(i => i.value);
 const tam = () => +document.querySelector("input[name=tam]:checked").value;
 
-function update() {
+let editada = false;
+function update(e) {
+  if (e?.target?.id === "msg") { editada = true; $("restaurar").hidden = false; return link(); }
   const n = tam();
   let s = sel();
   // ao trocar 3 -> 2, descarta o último marcado
@@ -237,31 +248,41 @@ function update() {
 
   const ok = s.length === n;
   const obs = $("obs").value.trim();
-  const nomeCurto = user ? user.nome.split(" ")[0] : "…";
   const juntar = a => a.length > 1 ? a.slice(0, -1).join(", ") + " e " + a.at(-1) : (a[0] || "…");
   const msg = [
-    `Ninha, gata! Prepara esse lanche pra mim? 😋`,
+    `Ninha, gata! Prepara esse lanche pra mim?`,
     ``,
     `*Tapioca de ${juntar(s.map(x => x.toLowerCase()))}* (${n} sabores)`,
     ...(obs ? [`Ah, e capricha: ${obs}`] : []),
-    `Fica ${brl(PRECO[n])}`,
     ``,
-    `Me dá um alô se rola, tá? Beijo! 💛`,
-    `${nomeCurto} · ${user ? fmtTel(user.tel) : "…"}`
+    `Me dá um alô se rola, tá? Beijo!`
   ].join("\n");
-  $("preview").textContent = msg;
+  // depois que a pessoa edita, não sobrescreve o texto dela
+  if (!editada) $("msg").value = msg;
   $("total").textContent = brl(PRECO[n]);
-  const a = $("send");
-  a.setAttribute("aria-disabled", String(!ok));
-  a.href = ok ? `https://wa.me/${NINHA}?text=${encodeURIComponent(msg)}` : "#";
-  a.firstElementChild.textContent = ok ? "Enviar pelo WhatsApp" : `Escolha ${n - s.length} sabor${n - s.length > 1 ? "es" : ""}`;
+  $("send").firstElementChild.textContent = ok ? "Enviar pelo WhatsApp" : `Escolha ${n - s.length} sabor${n - s.length > 1 ? "es" : ""}`;
+  link(ok);
 }
+function link(ok = sel().length === tam()) {
+  const texto = $("msg").value.trim();
+  const a = $("send");
+  ok = ok && !!texto;
+  a.setAttribute("aria-disabled", String(!ok));
+  // api.whatsapp.com direto: o redirecionamento do wa.me corrompe emojis
+  a.href = ok ? `https://api.whatsapp.com/send?phone=${NINHA}&text=${encodeURIComponent(texto)}` : "#";
+}
+$("restaurar").onclick = () => { editada = false; $("restaurar").hidden = true; update(); };
+$("desistir").onclick = () => {
+  $("f-tap").reset(); editada = false; $("restaurar").hidden = true;
+  update(); close("m-tap");
+};
 $("f-tap").addEventListener("input", update);
 $("f-tap").onsubmit = e => e.preventDefault();
 // sem cadastro: pede nome/celular antes de abrir o cardápio
 let pendente = false;
 $("card-tapioca").onclick = () => {
   if (!user) { pendente = true; $("who").click(); return; }
+  editada = false; $("restaurar").hidden = true;
   update(); open("m-tap");
 };
 
