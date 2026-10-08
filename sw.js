@@ -1,6 +1,6 @@
 // Ninha Delivery: app shell offline + cache das fontes.
 // Ao mudar qualquer arquivo do app, suba a versão para forçar atualização.
-const VERSION = "v2";
+const VERSION = "v3";
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = "runtime";
 const ASSETS = [
@@ -8,6 +8,9 @@ const ASSETS = [
   "manifest.webmanifest",
   "img/ninha.jpg",
   "img/tapioca.jpg",
+  "img/cuscuz.jpg",
+  "img/americano.jpg",
+  "img/misto.jpg",
   "icons/icon-192.png",
   "icons/icon-512.png",
 ];

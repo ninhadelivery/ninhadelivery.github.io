@@ -76,7 +76,7 @@ h2.sec { font-family: var(--f-display); font-weight: 600; font-size: .78rem; tex
 .card .price { font-weight: 700; font-variant-numeric: tabular-nums }
 .card .price span { color: var(--muted); font-weight: 400 }
 
-.soon { border: 1px dashed var(--line); border-radius: var(--r); padding: 16px; color: var(--muted); font-size: .9rem; text-align: center }
+.menu { display: grid; gap: 16px }
 
 /* modal */
 .scrim { position: fixed; inset: 0; background: rgb(8 12 24 / .55); display: flex; align-items: flex-end; justify-content: center; z-index: 10 }
@@ -137,15 +137,7 @@ textarea { resize: vertical; min-height: 60px }
 
   <h2 class="sec">Cardápio</h2>
 
-  <button class="card" id="card-tapioca" type="button" aria-haspopup="dialog">
-    <img src="img/tapioca.jpg" alt="Tapioca de charque">
-    <div class="body">
-      <div><h3>Tapioca</h3><p>Monte com 2 ou 3 sabores: frango, charque, queijo, calabresa.</p></div>
-      <div class="price"><span>a partir de</span><br>R$ 9,00</div>
-    </div>
-  </button>
-
-  <div class="soon">Outros lanches entram aqui como novos cards.</div>
+  <div class="menu" id="menu"></div>
 </div>
 
 <!-- cadastro -->
@@ -160,24 +152,24 @@ textarea { resize: vertical; min-height: 60px }
   </form>
 </div>
 
-<!-- tapioca -->
-<div class="scrim" id="m-tap" hidden>
-  <form class="sheet" id="f-tap" role="dialog" aria-modal="true" aria-labelledby="tap-h" novalidate>
-    <div class="sheet-head"><h3 id="tap-h">Tapioca</h3><button class="x" type="button" data-close aria-label="Fechar">×</button></div>
-    <img class="hero" src="img/tapioca.jpg" alt="">
+<!-- lanche (um modal para todos os itens do cardápio) -->
+<div class="scrim" id="m-item" hidden>
+  <form class="sheet" id="f-item" role="dialog" aria-modal="true" aria-labelledby="item-h" novalidate>
+    <div class="sheet-head"><h3 id="item-h"></h3><button class="x" type="button" data-close aria-label="Fechar">×</button></div>
+    <img class="hero" id="item-img" src="" alt="">
+    <p class="hint" id="item-desc" style="margin:0"></p>
 
-    <fieldset>
+    <fieldset id="tam-wrap">
       <legend>Tamanho</legend>
-      <label class="opt"><input type="radio" name="tam" id="tam-2" value="2" checked><span class="t">Dois sabores</span><span class="v">R$ 9,00</span></label>
-      <label class="opt"><input type="radio" name="tam" id="tam-3" value="3"><span class="t">Três sabores</span><span class="v">R$ 10,00</span></label>
+      <div id="tamanhos" style="display:grid;gap:8px"></div>
     </fieldset>
 
-    <fieldset class="flavors-wrap">
-      <legend>Sabores <span class="count" id="count"></span></legend>
+    <fieldset id="sab-wrap">
+      <legend><span id="sab-leg">Sabores</span> <span class="count" id="count"></span></legend>
       <div class="flavors" style="display:grid;gap:8px" id="flavors"></div>
     </fieldset>
 
-    <label class="field">Observação <span>opcional — ex.: bem passada, sem manteiga</span><textarea id="obs" maxlength="140"></textarea></label>
+    <label class="field">Observação <span id="obs-ex"></span><textarea id="obs" maxlength="140"></textarea></label>
 
     <div>
       <div class="msg-head">
@@ -196,8 +188,26 @@ textarea { resize: vertical; min-height: 60px }
 <script>
 // Número da Ninha: +55 81 8364-0068 (com 9º dígito, padrão WhatsApp)
 const NINHA = "5581983640068";
-const PRECO = { 2: 9, 3: 10 };
 const SABORES = ["Frango", "Charque", "Queijo", "Calabresa"];
+
+// Cardápio. Item com `escolha` pede sabores/recheios; `opcoes` define quantos e o preço.
+const CARDAPIO = [
+  { id: "tapioca", nome: "Tapioca", img: "img/tapioca.jpg", alt: "Tapioca de charque",
+    desc: "Monte com 2 ou 3 sabores: frango, charque, queijo, calabresa.",
+    escolha: "sabores", opcoes: [{ n: 2, label: "Dois sabores", preco: 9 }, { n: 3, label: "Três sabores", preco: 10 }],
+    obs: "bem passada, sem manteiga" },
+  { id: "cuscuz", nome: "Cuscuz recheado", img: "img/cuscuz.jpg", alt: "Cuscuz recheado com charque e queijo",
+    desc: "Com 3 recheios: frango, charque, queijo, calabresa.",
+    escolha: "recheios", opcoes: [{ n: 3, label: "Três recheios", preco: 12 }],
+    obs: "com manteiga, bem molhadinho" },
+  { id: "americano", nome: "Sanduíche americano", img: "img/americano.jpg", alt: "Sanduíche americano com alface, ovo, queijo e presunto",
+    desc: "Salada, ovo, queijo e presunto.",
+    opcoes: [{ n: 0, preco: 12 }], obs: "sem tomate, ovo bem passado" },
+  { id: "misto", nome: "Sanduíche misto", img: "img/misto.jpg", alt: "Sanduíche misto tostado",
+    desc: "Queijo e presunto.",
+    opcoes: [{ n: 0, preco: 8 }], obs: "bem tostado" },
+];
+let item = CARDAPIO[0];
 const brl = n => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const $ = id => document.getElementById(id);
 
@@ -227,43 +237,72 @@ $("f-cad").onsubmit = e => {
   $("cad-err").textContent = err; $("cad-err").hidden = !err;
   if (err) return;
   user = { nome, tel }; store.set(user); renderWho(); close("m-cad");
-  if (pendente) { pendente = false; update(); open("m-tap"); }
+  if (pendente) { const id = pendente; pendente = null; abrir(id); }
 };
 
-// tapioca
+// cardápio
+$("menu").innerHTML = CARDAPIO.map(it => {
+  const min = Math.min(...it.opcoes.map(o => o.preco));
+  const de = it.opcoes.length > 1 ? `<span>a partir de</span><br>` : "";
+  return `<button class="card" id="card-${it.id}" data-item="${it.id}" type="button" aria-haspopup="dialog">
+    <img src="${it.img}" alt="${it.alt}" loading="lazy">
+    <div class="body">
+      <div><h3>${it.nome}</h3><p>${it.desc}</p></div>
+      <div class="price">${de}${brl(min)}</div>
+    </div>
+  </button>`;
+}).join("");
+
 $("flavors").innerHTML = SABORES.map(s =>
   `<label class="opt"><input type="checkbox" name="sabor" id="s-${s.toLowerCase()}" value="${s}"><span class="t">${s}</span></label>`).join("");
 const sel = () => [...document.querySelectorAll("input[name=sabor]:checked")].map(i => i.value);
-const tam = () => +document.querySelector("input[name=tam]:checked").value;
+const opcao = () => item.opcoes[+(document.querySelector("input[name=tam]:checked")?.value ?? 0)];
+
+function montarModal() {
+  $("item-h").textContent = item.nome;
+  $("item-img").src = item.img;
+  $("item-desc").textContent = item.desc;
+  $("obs-ex").textContent = `opcional — ex.: ${item.obs}`;
+  $("sab-wrap").hidden = !item.escolha;
+  $("sab-leg").textContent = item.escolha === "recheios" ? "Recheios" : "Sabores";
+  // radio só quando há mais de um tamanho
+  $("tam-wrap").hidden = item.opcoes.length < 2;
+  $("tamanhos").innerHTML = item.opcoes.length < 2 ? "" : item.opcoes.map((o, i) =>
+    `<label class="opt"><input type="radio" name="tam" id="tam-${o.n}" value="${i}"${i ? "" : " checked"}><span class="t">${o.label}</span><span class="v">${brl(o.preco)}</span></label>`).join("");
+}
 
 let editada = false;
 function update(e) {
   if (e?.target?.id === "msg") { editada = true; $("restaurar").hidden = false; return link(); }
-  const n = tam();
+  const { n, preco } = opcao();
   let s = sel();
-  // ao trocar 3 -> 2, descarta o último marcado
-  if (s.length > n) { document.querySelectorAll("input[name=sabor]:checked")[s.length - 1].checked = false; s = sel(); }
+  // ao reduzir a quantidade, descarta o último marcado
+  if (s.length > n) { [...document.querySelectorAll("input[name=sabor]:checked")].slice(n).forEach(i => i.checked = false); s = sel(); }
   document.querySelectorAll("input[name=sabor]").forEach(i => i.disabled = !i.checked && s.length >= n);
   const c = $("count"); c.textContent = `${s.length} de ${n}`; c.classList.toggle("done", s.length === n);
 
   const ok = s.length === n;
   const obs = $("obs").value.trim();
   const juntar = a => a.length > 1 ? a.slice(0, -1).join(", ") + " e " + a.at(-1) : (a[0] || "…");
+  const pedido = item.escolha
+    ? `*${item.nome} de ${juntar(s.map(x => x.toLowerCase()))}* (${n} ${item.escolha})`
+    : `*${item.nome}*`;
   const msg = [
     `Ninha, gata! Prepara esse lanche pra mim?`,
     ``,
-    `*Tapioca de ${juntar(s.map(x => x.toLowerCase()))}* (${n} sabores)`,
+    pedido,
     ...(obs ? [`Ah, e capricha: ${obs}`] : []),
     ``,
     `Me dá um alô se rola, tá? Beijo!`
   ].join("\n");
   // depois que a pessoa edita, não sobrescreve o texto dela
   if (!editada) $("msg").value = msg;
-  $("total").textContent = brl(PRECO[n]);
-  $("send").firstElementChild.textContent = ok ? "Enviar pelo WhatsApp" : `Escolha ${n - s.length} sabor${n - s.length > 1 ? "es" : ""}`;
+  $("total").textContent = brl(preco);
+  const falta = n - s.length, palavra = item.escolha === "recheios" ? "recheio" : "sabor";
+  $("send").firstElementChild.textContent = ok ? "Enviar pelo WhatsApp" : `Escolha ${falta} ${palavra}${falta > 1 ? (palavra === "sabor" ? "es" : "s") : ""}`;
   link(ok);
 }
-function link(ok = sel().length === tam()) {
+function link(ok = sel().length === opcao().n) {
   const texto = $("msg").value.trim();
   const a = $("send");
   ok = ok && !!texto;
@@ -273,20 +312,24 @@ function link(ok = sel().length === tam()) {
 }
 $("restaurar").onclick = () => { editada = false; $("restaurar").hidden = true; update(); };
 $("desistir").onclick = () => {
-  $("f-tap").reset(); editada = false; $("restaurar").hidden = true;
-  update(); close("m-tap");
+  $("f-item").reset(); editada = false; $("restaurar").hidden = true;
+  update(); close("m-item");
 };
-$("f-tap").addEventListener("input", update);
-$("f-tap").onsubmit = e => e.preventDefault();
-// sem cadastro: pede nome/celular antes de abrir o cardápio
-let pendente = false;
-$("card-tapioca").onclick = () => {
-  if (!user) { pendente = true; $("who").click(); return; }
+$("f-item").addEventListener("input", update);
+$("f-item").onsubmit = e => e.preventDefault();
+
+// sem cadastro: pede nome/celular antes de abrir o lanche
+let pendente = null;
+function abrir(id) {
+  if (!user) { pendente = id; $("who").click(); return; }
+  if (item.id !== id) { item = CARDAPIO.find(it => it.id === id); $("f-item").reset(); montarModal(); }
   editada = false; $("restaurar").hidden = true;
-  update(); open("m-tap");
-};
+  update(); open("m-item");
+}
+$("menu").addEventListener("click", e => { const c = e.target.closest("[data-item]"); if (c) abrir(c.dataset.item); });
 
 renderWho();
+montarModal();
 update();
 
 if ("serviceWorker" in navigator) {
